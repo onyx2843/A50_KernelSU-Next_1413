@@ -58,7 +58,7 @@ SUBLEVEL=$(grep -m 1   SUBLEVEL "$TOP/Makefile"   | sed 's/^.*= //g')
 BUILD_DATE="$(date +%s)"
 BUILD_KERNEL_BRANCH="${GITHUB_REF##*/}"
 [[ -z $BUILD_KERNEL_BRANCH ]] && BUILD_KERNEL_BRANCH="user"
-[[ $BUILD_KERNEL_BRANCH == *"android-"* ]] && BUILD_KERNEL_BRANCH="mainline"
+# [[ $BUILD_KERNEL_BRANCH == *"android-"* ]] && BUILD_KERNEL_BRANCH="mainline"
 
 # Defaults
 BUILD_KERNEL_KSU=false

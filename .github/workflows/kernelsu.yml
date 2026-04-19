@@ -1,30 +1,73 @@
-name: Update KernelSU
+name: Update KernelSU Submodule
 
 on:
   workflow_dispatch:
+    inputs:
+      update_type:
+        description: 'Choose update behavior'
+        required: true
+        type: choice
+        options:
+          - specific_commit
+          - latest_release
+        default: 'specific_commit'
+      commit_hash:
+        description: 'Commit hash (used if specific_commit is chosen)'
+        required: false
+        type: string
+        default: '0d6bdc6364cbfc73517dcfdf7ab23b0ba8045553'
 
 jobs:
-  update:
+  update-submodule:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v6
         with:
-          submodules: true
-          token: ${{ secrets.GITHUB_TOKEN }}
+          submodules: false
 
-      - name: Update submodule
+      - name: Remove Old Submodule Traces
         run: |
-          git submodule update --remote --recursive
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm --cached KernelSU || true
+          rm -rf .git/modules/KernelSU
+          rm -rf KernelSU
 
-          if ! git diff --quiet; then
-            COMMIT=$(cd "KernelSU" && git rev-parse --short HEAD)
+      - name: Add and Update Submodule
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git submodule add --force https://github.com/rifsxd/KernelSU-Next.git KernelSU
+          git submodule update --init --recursive KernelSU
 
-            git commit -am "KernelSU: update to '$COMMIT'"
-            git push
+          cd KernelSU
+          git fetch --all --tags
+
+          if [ "${{ inputs.update_type }}" = "latest_release" ]; then
+            TARGET=$(gh release list -R rifsxd/KernelSU-Next --limit 1 --json tagName --jq '.[0].tagName')
+            
+            if [ -z "$TARGET" ]; then
+              echo "::error::Could not get the latest release tag. Aborting."
+              exit 1
+            fi
+            
+            echo "Latest release tag is: $TARGET"
+            MSG="chore: Update KernelSU submodule to latest release ($TARGET)"
           else
-            echo "Submodules are up-to-date!"
+            TARGET="${{ inputs.commit_hash }}"
+            echo "Checking out specific commit: $TARGET"
+            MSG="chore: Update KernelSU submodule to commit $TARGET"
           fi
+
+          git checkout $TARGET
+          cd ..
+
+          git add KernelSU
+          echo "COMMIT_MSG=$MSG" >> $GITHUB_ENV
+
+      - name: Commit and Push Changes
+        uses: stefanzweifel/git-auto-commit-action@v7
+        with:
+          commit_message: ${{ env.COMMIT_MSG }}
